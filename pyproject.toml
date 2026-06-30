@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gabber"
-version = "0.2.0"
+version = "0.2.2"
 description = "Gabber is a tool for scraping and analyzing Gab posts."
 authors = [
     "R. Miles McCain <mccain@stanford.edu>",
@@ -9,8 +9,8 @@ authors = [
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14"
-requests = "^2.33.1"
+python = ">=3.11,<3.14"
+requests = "^2.34.0"
 click = "^8.3.3"
 python-dateutil = "^2.9.0.post0"
 loguru = "^0.7.3"
