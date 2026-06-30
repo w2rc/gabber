@@ -84,7 +84,7 @@ def await_any(items: List[futures.Future], pop=True):
 
 def extract_url_from_link_header(link: str) -> str:
     """Helper method to pull urls from link header for iteration through accounts"""
-    pattern = "https?://.+?max_id=\d+"
+    pattern = r"https?://.+?max_id=\d+"
     matched_links = re.findall(pattern, link)
     if matched_links:
         return re.findall(pattern, link)[0]
