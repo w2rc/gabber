@@ -74,7 +74,7 @@ Options:
 ## Environment Variables
 
 * `HTTPS_PROXY` — route all traffic through this HTTPS proxy (highly recommended given Gab's rate limiting)
-* * Note: if you have a pre-existing `HTTP_PROXY` environment variable, this may be picked up by Python's requests library and produce errors.
+* * Note: if you have a pre-existing `HTTP_PROXY` environment variable, curl_cffi may pick it up and produce errors.
 
 * `GAB_USER` — the (optional) username to authenticate as with Gab
 * `GAB_PASS` — the (optional) password to use while authenticating with Gab

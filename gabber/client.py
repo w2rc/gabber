@@ -1,6 +1,5 @@
 import os
 import re
-import subprocess
 import sys
 from time import sleep
 import click
@@ -46,32 +45,13 @@ logger.add(write_tqdm)
 # Constants
 GAB_BASE_URL = "https://gab.com"
 GAB_API_BASE_URL = "https://gab.com/api/"
-
-
-def detect_chrome_major_version() -> int | None:
-    """Return the locally installed Chrome major version, or None if it can't be found.
-
-    undetected-chromedriver fetches the latest chromedriver by default; if that
-    version doesn't match the installed Chrome, session-create fails. Passing
-    `version_main` tells uc to fetch a matching driver.
-    """
-    candidates = [
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        "google-chrome",
-        "google-chrome-stable",
-        "chromium",
-    ]
-    for binary in candidates:
-        try:
-            out = subprocess.run(
-                [binary, "--version"], capture_output=True, text=True, timeout=5
-            )
-        except (FileNotFoundError, subprocess.SubprocessError):
-            continue
-        match = re.search(r"\b(\d+)\.\d+\.\d+\.\d+\b", out.stdout)
-        if match:
-            return int(match.group(1))
-    return None
+# Keep in lockstep with IMPERSONATE_TARGET so headers match the TLS fingerprint.
+IMPERSONATE_TARGET = "chrome152"
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+)
+SEC_CH_UA = '"Chromium";v="152", "Not?A_Brand";v="24", "Google Chrome";v="152"'
 
 
 def await_any(items: List[futures.Future], pop=True):
@@ -104,22 +84,9 @@ class Client:
         self.password = password
         self.threads = threads
         self._requests_since_refresh = 0
-        chrome_major = detect_chrome_major_version() or 147
         self.headers = {
-            "User-Agent": (
-                f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                f"AppleWebKit/537.36 (KHTML, like Gecko) "
-                f"Chrome/{chrome_major}.0.0.0 Safari/537.36"
-            ),
-            # Chrome's GREASE brand and version rotate per major release; the
-            # shape below mirrors what curl-cffi's chrome-146 impersonation
-            # emitted. Servers that validate UA-CH parse the list and look for
-            # "Google Chrome" or "Chromium" rather than exact ordering.
-            "Sec-CH-UA": (
-                f'"Chromium";v="{chrome_major}", '
-                f'"Not-A.Brand";v="24", '
-                f'"Google Chrome";v="{chrome_major}"'
-            ),
+            "User-Agent": USER_AGENT,
+            "Sec-CH-UA": SEC_CH_UA,
             "Sec-CH-UA-Mobile": "?0",
             "Sec-CH-UA-Platform": '"Windows"',
         }
@@ -132,12 +99,11 @@ class Client:
     def _get(self, *args, skip_sess_refresh=False, **kwargs):
         """Wrapper for requests.get(), except it supports retries."""
 
-        s = requests.Session()
+        s = requests.Session(impersonate=IMPERSONATE_TARGET)
         url = args[0]
-        # strangely, the status_comments endpoint only appears to work if we use curl_cffi
-        # and strip all headers and cookies.
+        # status_comments only works with all headers and cookies stripped.
         if "status_comments" in url:
-            response = s.get(*args, timeout=30, **kwargs)
+            response = s.get(*args, timeout=30, default_headers=False, **kwargs)
 
         else:
             response = s.get(*args, headers=self.headers, timeout=30, **kwargs)
@@ -643,7 +609,7 @@ class Client:
         signin_url = GAB_BASE_URL + "/auth/sign_in"
         logger.debug("Logging in to Gab.")
 
-        sess = requests.Session(impersonate="chrome")
+        sess = requests.Session(impersonate=IMPERSONATE_TARGET)
 
         form = sess.get(signin_url, headers=self.headers, timeout=30)
         if form.status_code != 200:
