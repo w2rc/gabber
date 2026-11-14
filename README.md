@@ -84,3 +84,5 @@ Options:
 To run Gabber in a development environment, you'll need [Poetry](https://python-poetry.org). Install the dependencies by running `poetry install`, and then you're all set to work on Gabber locally.
 
 To access the CLI, run `poetry run gabber`.
+
+Before committing, run `poetry run ty check gabber`.

@@ -302,7 +302,9 @@ class Client:
 
             page += 1
 
-    def pull_group_and_posts(self, id: int, pull_posts: bool, depth: int) -> dict:
+    def pull_group_and_posts(
+        self, id: int, pull_posts: bool, depth: int
+    ) -> tuple[dict, list[dict]]:
         """Pull both a group and their its from Gab. Returns a tuple of (group, posts). Posts is an empty list if the group is not found (i.e., None)."""
 
         group = self.pull_group(id)
@@ -324,7 +326,7 @@ class Client:
         id: int,
         created_after: date,
         replies: bool,
-        expected_count: int = None,
+        expected_count: int | None = None,
         retries_remaining: int = 3,
     ) -> List[dict]:
         """Pull the given user's statuses from Gab. Returns an empty list if not found."""
@@ -404,7 +406,7 @@ class Client:
 
     def pull_user_and_posts(
         self, id: int, pull_posts: bool, created_after: date, replies: bool
-    ) -> dict:
+    ) -> tuple[dict, list[dict]]:
         """Pull both a user and their posts from Gab. Returns a tuple of (user, posts). Posts is an empty list if the user is not found (i.e., None)."""
 
         user = self.pull_user(id)
@@ -412,12 +414,13 @@ class Client:
         # replies endpoint will add more statuses than are listed for the account
         # also unset 'expected_count' if the user does not exist
         # or if user creation date is before cutoff.
-        logger.debug(f"user {id}: {user['created_at']} - {created_after}")
-        if (created_after) and created_after > date.fromisoformat(
-            user.get("created_at").split("T")[0]
-        ):
+        created_at = user.get("created_at")
+        logger.debug(f"user {id}: {created_at} - {created_after}")
+        if replies or created_at is None:
             expected_count = None
-        elif replies or user is None:
+        elif created_after and created_after > date.fromisoformat(
+            created_at.split("T")[0]
+        ):
             expected_count = None
         else:
             expected_count = user.get("statuses_count")
@@ -439,7 +442,8 @@ class Client:
             logger.info(
                 f"Pulled {len(posts)} (Gab claims {user.get('statuses_count')}) posts from user #{id} (@{user['username']})."
             )
-            if user.get("statuses_count") < len(posts):
+            statuses_count = user.get("statuses_count")
+            if statuses_count is not None and statuses_count < len(posts):
                 logger.warning(
                     f"Pulled posts for user #{id} does not match Gab's claim! (We have {len(posts)}, but Gab says this user has {user.get('statuses_count')} statuses.)"
                 )
@@ -528,7 +532,12 @@ class Client:
                 upper_bound = middle - 1
             logger.debug(f"Upper bound: {upper_bound}. Lower bound: {lower_bound}")
 
-        logger.info(f"Retrieving user: {middle}")
+        if user_id is None:
+            raise RuntimeError(
+                f"No {accounts_or_groups} found at or above #{lower_bound}"
+            )
+
+        logger.info(f"Retrieving user: {user_id}")
 
         if accounts_or_groups == "accounts":
             user = self.pull_user(user_id)
@@ -538,7 +547,7 @@ class Client:
             time_limit = 1440  # 24 hrs
         if user["_available"]:
             created_at = date_parse(user["created_at"]).replace(tzinfo=timezone.utc)
-            delta = datetime.utcnow().replace(tzinfo=timezone.utc) - created_at
+            delta = datetime.now(timezone.utc) - created_at
             if delta > timedelta(minutes=time_limit):
                 logger.error(
                     f"The most recent user was created more than 30 minutes ago ({user['username']} @ {user['created_at']}, {round(delta.total_seconds() / 60)} mins ago)... that doesn't seem right!"
@@ -802,7 +811,7 @@ def users(
 
     users = iter(range(first, int(last) + 1))
 
-    with open(users_file, "w") as user_file, open(posts_file, "w") as posts_file:
+    with open(users_file, "w") as users_out, open(posts_file, "w") as posts_out:
         with ThreadPoolExecutor(max_workers=client.threads) as ex, tqdm(
             total=int(last) + 1 - first
         ) as pbar:
@@ -829,13 +838,13 @@ def users(
                         if user is not None:
                             print(
                                 json.dumps(user, default=json_set_default),
-                                file=user_file,
+                                file=users_out,
                                 flush=True,
                             )
                             for post in found_posts:
                                 print(
                                     json.dumps(post, default=json_set_default),
-                                    file=posts_file,
+                                    file=posts_out,
                                     flush=True,
                                 )
 
@@ -897,7 +906,7 @@ def groups(
 
     groups = iter(range(first, int(last) + 1))
 
-    with open(groups_file, "w") as groups_file, open(posts_file, "w") as posts_file:
+    with open(groups_file, "w") as groups_out, open(posts_file, "w") as posts_out:
         with ThreadPoolExecutor(max_workers=client.threads) as ex, tqdm(
             total=int(last) + 1 - first
         ) as pbar:
@@ -922,13 +931,13 @@ def groups(
                         if group is not None:
                             print(
                                 json.dumps(group, default=json_set_default),
-                                file=groups_file,
+                                file=groups_out,
                                 flush=True,
                             )
                             for post in found_posts:
                                 print(
                                     json.dumps(post, default=json_set_default),
-                                    file=posts_file,
+                                    file=posts_out,
                                     flush=True,
                                 )
 
