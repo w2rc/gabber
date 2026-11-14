@@ -171,7 +171,7 @@ class Client:
             print("N/A")
 
     def pull_user(self, id: int) -> dict:
-        """Pull the given user's information from Gab. Returns None if not found."""
+        """Pull the given user's information from Gab. `_available` is False if not found."""
 
         result = {
             "_pulled": datetime.now().isoformat(),
@@ -212,7 +212,7 @@ class Client:
         return result
 
     def pull_group(self, id: int) -> dict:
-        """Pull the given group's information from Gab. Returns None if not found."""
+        """Pull the given group's information from Gab. `_available` is False if not found."""
 
         result = {
             "_pulled": datetime.now().isoformat(),
@@ -305,16 +305,16 @@ class Client:
     def pull_group_and_posts(
         self, id: int, pull_posts: bool, depth: int
     ) -> tuple[dict, list[dict]]:
-        """Pull both a group and their its from Gab. Returns a tuple of (group, posts). Posts is an empty list if the group is not found (i.e., None)."""
+        """Pull a group and its posts from Gab. Posts is empty if the group is not found."""
 
         group = self.pull_group(id)
         posts = list(
             self.pull_group_posts(id, depth)
-            if group.get("_available", False) and pull_posts and pull_posts
+            if group.get("_available", False) and pull_posts
             else []
         )
 
-        if group is None or not group.get("_available", False):
+        if not group.get("_available", False):
             logger.info(f"Group #{id} does not exist.")
         else:
             logger.info(f"Pulled {len(posts)} posts from group #{id}.")
@@ -407,7 +407,7 @@ class Client:
     def pull_user_and_posts(
         self, id: int, pull_posts: bool, created_after: date, replies: bool
     ) -> tuple[dict, list[dict]]:
-        """Pull both a user and their posts from Gab. Returns a tuple of (user, posts). Posts is an empty list if the user is not found (i.e., None)."""
+        """Pull a user and their posts from Gab. Posts is empty if the user is not found."""
 
         user = self.pull_user(id)
 
@@ -436,7 +436,7 @@ class Client:
             else []
         )
 
-        if user is None or not user.get("_available", False):
+        if not user.get("_available", False):
             logger.info(f"User #{id} does not exist.")
         else:
             logger.info(
@@ -835,20 +835,19 @@ def users(
                             0
                         )  # Waits until complete
 
-                        if user is not None:
+                        print(
+                            json.dumps(user, default=json_set_default),
+                            file=users_out,
+                            flush=True,
+                        )
+                        for post in found_posts:
                             print(
-                                json.dumps(user, default=json_set_default),
-                                file=users_out,
+                                json.dumps(post, default=json_set_default),
+                                file=posts_out,
                                 flush=True,
                             )
-                            for post in found_posts:
-                                print(
-                                    json.dumps(post, default=json_set_default),
-                                    file=posts_out,
-                                    flush=True,
-                                )
 
-                            logger.info(f"Wrote user #{user['id']} to disk...")
+                        logger.info(f"Wrote user #{user['id']} to disk...")
                 except Exception as e:
                     logger.warning(f"Encountered exception in thread pool: {str(e)}")
                     raise e
@@ -928,18 +927,17 @@ def groups(
                             0
                         )  # Waits until complete
 
-                        if group is not None:
+                        print(
+                            json.dumps(group, default=json_set_default),
+                            file=groups_out,
+                            flush=True,
+                        )
+                        for post in found_posts:
                             print(
-                                json.dumps(group, default=json_set_default),
-                                file=groups_out,
+                                json.dumps(post, default=json_set_default),
+                                file=posts_out,
                                 flush=True,
                             )
-                            for post in found_posts:
-                                print(
-                                    json.dumps(post, default=json_set_default),
-                                    file=posts_out,
-                                    flush=True,
-                                )
 
                         logger.info(f"Wrote group #{group['id']} to disk...")
                 except Exception as e:
